@@ -8,5 +8,13 @@
         sender.Send()
     }
 
-Tested on mail service mail.yandex.ru
+Works with mail services:
+
+* mail.yandex.ru
+* e.mail.ru
+* gmail.com
+
+__TODO__:
+
+* STARTTLS may be not worked. On outlook (smtp.office365.com:587) not work
 

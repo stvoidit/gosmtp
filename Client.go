@@ -65,6 +65,7 @@ func NewSender(login, password, email, server string) *Sender {
 	return &auth
 }
 
+//
 // create connection for smtp client
 func (s *Sender) connect() *smtp.Client {
 	var err error
@@ -75,10 +76,30 @@ func (s *Sender) connect() *smtp.Client {
 		ServerName:         host,
 	}
 	conn, err := tls.Dial("tcp", s.ServerSMTP, tlsconfig)
-	c, err := smtp.NewClient(conn, host)
-	err = c.Auth(auth)
 	if err != nil {
-		log.Panic(err)
+		log.Println(err.Error())
+	}
+
+	var c *smtp.Client
+	if conn != nil {
+		c, err = smtp.NewClient(conn, host)
+		if err != nil {
+			panic(err)
+		}
+	} else {
+		c, err = smtp.Dial(s.ServerSMTP)
+		if err := c.StartTLS(tlsconfig); err != nil {
+			log.Fatalln(err)
+		}
+		if ok, response := c.Extension("AUTH"); ok {
+			log.Println(response)
+		}
+		if err := c.Noop(); err != nil {
+			log.Fatalln(err)
+		}
+	}
+	if err := c.Auth(auth); err != nil {
+		log.Fatalln(err)
 	}
 	return c
 }
