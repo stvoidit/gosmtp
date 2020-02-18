@@ -1,44 +1,39 @@
 package main
 
 import (
+	"log"
+
 	"github.com/stvoidit/gosmtp"
 )
 
-var To = []string{
-	"exemple1@yandex.ru",
-	"exemple2@mail.ru",
-	"exemple3@gmail.com",
-}
-
-var Files = []string{}
-
-func yandex() {
-	client := gosmtp.NewSender("exemple1", "password", "exemple1@yandex.ru", "smtp.yandex.ru:465")
-	client.NewMessage("test message", To, "body test text", Files)
-	client.Send()
-}
-
-func mailru() {
-	client := gosmtp.NewSender("exemple2", "password", "exemple2@mail.ru", "smtp.mail.ru:465")
-	client.NewMessage("test message", To, "body test text", Files)
-	client.Send()
-}
-
-func gmail() {
-	client := gosmtp.NewSender("exemple3@gmail.com", "password", "exemple3@gmail.com", "smtp.gmail.com:465")
-	client.NewMessage("test message", To, "body test text", Files)
-	client.Send()
-}
-
-// func outlook() {
-// 	client := gosmtp.NewSender("exemple4@hotmail.com", "password", "exemple4@hotmail.com", "smtp.office365.com:587")
-// 	client.NewMessage("test message", To, "body test text", Files)
-// 	client.Send()
-// }
-
 func main() {
-	yandex()
-	mailru()
-	gmail()
-	// outlook()
+	client, err := gosmtp.NewSender(
+		"admin1",
+		"sosecretpassword",
+		"admin1@example.com",
+		"smtp.example.com:465")
+	if err != nil {
+		log.Fatalln(err)
+	}
+	var recipients = [][]string{
+		[]string{"user1@example.com", "user2@example.com"},
+		[]string{"user3@example.com", "user4@example.com"},
+	}
+	var files = []string{
+		"file1.jpeg",
+		"file2.mp3",
+	}
+	var messages = make([]*gosmtp.Message, 0)
+	for _, recs := range recipients {
+		var msg = gosmtp.NewMessage().
+			SetTO(recs).
+			SetSubject("hello world").
+			SetText("something text").
+			AddAttaches(files)
+		messages = append(messages, msg)
+	}
+	client.AddMessage(messages...)
+	if err := client.Send(); err != nil {
+		log.Fatalln(err)
+	}
 }
