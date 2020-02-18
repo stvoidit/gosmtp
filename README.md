@@ -1,19 +1,19 @@
 # gosmtp
 
-### Usage exemple
+### Usage example
 
     func main() {
         client, err := gosmtp.NewSender(
             "admin1",
             "sosecretpassword",
-            "admin1@exemple.com",
-            "smtp.exemple.com:465")
+            "admin1@example.com",
+            "smtp.example.com:465")
         if err != nil {
             panic(err)
         }
         var recipients = [][]string{
-            []string{"user1@exemple.com", "user2@exemple.com"},
-            []string{"user3@exemple.com", "user4@exemple.com"},
+            []string{"user1@example.com", "user2@example.com"},
+            []string{"user3@example.com", "user4@example.com"},
         }
         var files = []string{
             "file1.jpeg",
