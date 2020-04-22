@@ -21,6 +21,11 @@ type Sender struct {
 	messages                           []*Message
 }
 
+// Quit - close client
+func (s *Sender) Quit() {
+	s.client.Quit()
+}
+
 // AddMessage - add to the distribution queue
 func (s *Sender) AddMessage(msgs ...*Message) {
 	for _, m := range msgs {
