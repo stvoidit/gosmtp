@@ -16,8 +16,8 @@ func main() {
 		log.Fatalln(err)
 	}
 	var recipients = [][]string{
-		[]string{"user1@example.com", "user2@example.com"},
-		[]string{"user3@example.com", "user4@example.com"},
+		{"user1@example.com", "user2@example.com"},
+		{"user3@example.com", "user4@example.com"},
 	}
 	var files = []string{
 		"file1.jpeg",
@@ -26,10 +26,10 @@ func main() {
 	var messages = make([]*gosmtp.Message, 0)
 	for _, recs := range recipients {
 		var msg = gosmtp.NewMessage().
-			SetTO(recs).
+			SetTO(recs...).
 			SetSubject("hello world").
 			SetText("something text").
-			AddAttaches(files)
+			AddAttaches(files...)
 		messages = append(messages, msg)
 	}
 	client.AddMessage(messages...)
