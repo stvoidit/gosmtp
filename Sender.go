@@ -142,6 +142,7 @@ func (m *Message) buildMessageBody() []byte {
 	headers["Date"] = time.Now().Format(time.RFC1123Z)
 	var buf = bytes.NewBuffer(nil)
 	var writer = multipart.NewWriter(buf)
+	defer writer.Close()
 	var boundary = writer.Boundary()
 
 	for k, v := range headers {
