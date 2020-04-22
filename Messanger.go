@@ -28,19 +28,19 @@ func (m *Message) SetFrom(from string) *Message {
 }
 
 // SetCC - field mail copy
-func (m *Message) SetCC(emails []string) *Message {
+func (m *Message) SetCC(emails ...string) *Message {
 	m.cc = emails
 	return m
 }
 
 // SetTO - field mail to
-func (m *Message) SetTO(emails []string) *Message {
+func (m *Message) SetTO(emails ...string) *Message {
 	m.to = emails
 	return m
 }
 
 // SetBCC - field mail secret copy
-func (m *Message) SetBCC(emails []string) *Message {
+func (m *Message) SetBCC(emails ...string) *Message {
 	m.bcc = emails
 	return m
 }
@@ -58,7 +58,7 @@ func (m *Message) SetText(body string) *Message {
 }
 
 // AddAttaches - add files
-func (m *Message) AddAttaches(attchs []string) *Message {
+func (m *Message) AddAttaches(attchs ...string) *Message {
 	m.attaches = attchs
 	return m
 }
