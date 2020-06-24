@@ -1,44 +1,11 @@
 package gosmtp
 
 import (
-	"io"
-
-	"gopkg.in/yaml.v3"
+	"crypto/tls"
+	"errors"
+	"net"
+	"net/smtp"
 )
-
-// Config - конфиг для smtp
-type Config struct {
-	SMTP struct {
-		Login      string   `yaml:"login"`
-		Password   string   `yaml:"password"`
-		Email      string   `yaml:"email"`
-		Server     string   `yaml:"server"`
-		Developers []string `yaml:"developers"`
-	} `yaml:"smtp"`
-}
-
-// NewConfig - create new config for sender
-func NewConfig(file io.ReadSeeker) Config {
-	var cnf Config
-	cnf.ReadConfig(file)
-	return cnf
-}
-
-// ReadConfig - read config for created config
-func (cnf *Config) ReadConfig(file io.ReadSeeker) {
-	file.Seek(0, 0)
-	if err := yaml.NewDecoder(file).Decode(cnf); err != nil {
-		panic(err)
-	}
-}
-
-// NewSenderWithConfig - init new sender with config file yaml
-func NewSenderWithConfig(cnf Config) (*Sender, error) {
-	return NewSender(cnf.SMTP.Login,
-		cnf.SMTP.Password,
-		cnf.SMTP.Email,
-		cnf.SMTP.Server)
-}
 
 // NewSender - new smtp client
 func NewSender(login, password, email, server string) (*Sender, error) {
@@ -50,4 +17,63 @@ func NewSender(login, password, email, server string) (*Sender, error) {
 		ServerSMTP: server}
 	auth.client, err = auth.connect()
 	return &auth, err
+}
+
+// create connection for smtp client
+func (s *Sender) connect() (c *smtp.Client, err error) {
+	host, _, err := net.SplitHostPort(s.ServerSMTP)
+	if err != nil {
+		return nil, err
+	}
+	var tlsConfig = tls.Config{ServerName: host}
+	var auth smtp.Auth
+	if conn, err := tls.Dial("tcp", s.ServerSMTP, &tlsConfig); err == nil {
+		if err := conn.Handshake(); err != nil {
+			return nil, err
+		}
+		c, err = smtp.NewClient(conn, host)
+		if err != nil {
+			return nil, err
+		}
+		auth = smtp.PlainAuth("", s.Login, s.Password, host)
+	} else {
+		c, err = smtp.Dial(s.ServerSMTP)
+		if err != nil {
+			return nil, err
+		}
+		if ok, _ := c.Extension(`STARTTLS`); ok {
+			if err := c.StartTLS(&tlsConfig); err != nil {
+				return nil, err
+			}
+		}
+		auth = smtp.Auth(&logingAuth{username: s.Login, password: s.Password})
+	}
+	if err := c.Auth(auth); err != nil {
+		return c, err
+	}
+	return c, nil
+}
+
+type logingAuth struct {
+	username, password string
+}
+
+// Start - init auth
+func (la *logingAuth) Start(server *smtp.ServerInfo) (string, []byte, error) {
+	return "LOGIN", make([]byte, 0), nil
+}
+
+// Next - next input
+func (la *logingAuth) Next(fromServer []byte, more bool) ([]byte, error) {
+	if more {
+		switch string(fromServer) {
+		case "Username:":
+			return []byte(la.username), nil
+		case "Password:":
+			return []byte(la.password), nil
+		default:
+			return nil, errors.New("Unkown fromServer: " + string(fromServer))
+		}
+	}
+	return nil, nil
 }

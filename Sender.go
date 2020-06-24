@@ -2,13 +2,10 @@ package gosmtp
 
 import (
 	"bytes"
-	"crypto/tls"
 	"encoding/base64"
-	"errors"
 	"fmt"
 	"log"
 	"mime/multipart"
-	"net"
 	"net/smtp"
 	"strings"
 	"time"
@@ -69,48 +66,6 @@ func (s *Sender) Send() error {
 		}
 	}
 	return nil
-}
-
-// create connection for smtp client
-func (s *Sender) connect() (*smtp.Client, error) {
-	var err error
-	host, _, err := net.SplitHostPort(s.ServerSMTP)
-	auth := smtp.PlainAuth("", s.Login, s.Password, host)
-	tlsconfig := &tls.Config{
-		InsecureSkipVerify: true,
-		ServerName:         host,
-	}
-	var c *smtp.Client
-	conn, err := tls.Dial("tcp", s.ServerSMTP, tlsconfig)
-	if err != nil {
-		return c, err
-	}
-	if conn != nil {
-		c, err = smtp.NewClient(conn, host)
-		if err != nil {
-			return c, err
-		}
-	} else {
-		return c, errors.New("nothing to do")
-	}
-	// TODO: Тут должна быть работы с 587 портом
-	// else {
-	// 	c, err = smtp.Dial(s.ServerSMTP)
-	// 	if err := c.StartTLS(tlsconfig); err != nil {
-	// 		return c, err
-	// 	}
-	// 	if ok, response := c.Extension("AUTH"); ok {
-	// 		log.Println(response)
-	// 	}
-	// 	if err := c.Noop(); err != nil {
-	// 		log.Fatalln(err)
-	// 	}
-	// }
-	if err := c.Auth(auth); err != nil {
-		fmt.Println("ededed")
-		return c, err
-	}
-	return c, nil
 }
 
 // NewMessage - simple create new message for send
