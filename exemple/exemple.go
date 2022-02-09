@@ -7,14 +7,11 @@ import (
 )
 
 func main() {
-	client, err := gosmtp.NewSender(
+	client := gosmtp.NewSender(
 		"admin1",
 		"sosecretpassword",
 		"admin1@example.com",
 		"smtp.example.com:465")
-	if err != nil {
-		log.Fatalln(err)
-	}
 	var recipients = [][]string{
 		{"user1@example.com", "user2@example.com"},
 		{"user3@example.com", "user4@example.com"},
@@ -23,17 +20,14 @@ func main() {
 		"file1.jpeg",
 		"file2.mp3",
 	}
-	var messages = make([]*gosmtp.Message, 0)
 	for _, recs := range recipients {
 		var msg = gosmtp.NewMessage().
 			SetTO(recs...).
 			SetSubject("hello world").
 			SetText("something text").
 			AddAttaches(files...)
-		messages = append(messages, msg)
-	}
-	client.AddMessage(messages...)
-	if err := client.Send(); err != nil {
-		log.Fatalln(err)
+		if err := client.SendMessage(msg); err != nil {
+			log.Fatalln(err)
+		}
 	}
 }

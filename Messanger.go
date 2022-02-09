@@ -2,10 +2,11 @@ package gosmtp
 
 import (
 	"bytes"
+	"crypto/rand"
 	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"io"
-	"mime/multipart"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -17,9 +18,9 @@ import (
 
 // Message - тело сообщения
 type Message struct {
-	to, cc, bcc         []string
-	text, subject, from string
-	attachments         []*Attachment
+	to, cc, bcc               []string
+	text, html, subject, from string
+	attachments               []*Attachment
 }
 
 // NewMessage - create new message
@@ -63,6 +64,12 @@ func (m *Message) SetText(body string) *Message {
 	return m
 }
 
+// SetHTML - text html
+func (m *Message) SetHTML(body string) *Message {
+	m.html = body
+	return m
+}
+
 // AddAttaches - add files
 func (m *Message) AddAttaches(attchs ...string) *Message {
 	for _, filename := range attchs {
@@ -73,6 +80,11 @@ func (m *Message) AddAttaches(attchs ...string) *Message {
 		}
 	}
 	return m
+}
+func generateBoundary() string {
+	var buf = make([]byte, 16)
+	rand.Read(buf)
+	return hex.EncodeToString(buf)
 }
 
 // AttacheReader - add file from reader
@@ -86,7 +98,7 @@ func (m *Message) AttacheReader(r io.Reader, filename string) error {
 }
 
 // NewMessage - simple create new message for send
-func (m *Message) buildMessageBody() []byte {
+func (m Message) buildMessageBody() *bytes.Buffer {
 	withAttachments := len(m.attachments) > 0
 	var headers = make(map[string]string)
 	headers["From"] = m.from
@@ -108,22 +120,26 @@ func (m *Message) buildMessageBody() []byte {
 	headers["Subject"] = m.subject
 	headers["MIME-Version"] = "1.0"
 	headers["Date"] = time.Now().Format(time.RFC1123Z)
-	var buf bytes.Buffer
-	var writer = multipart.NewWriter(&buf)
-	var boundary = writer.Boundary()
-
+	var buf = bytes.NewBuffer(nil)
+	var boundary = generateBoundary()
 	for k, v := range headers {
 		buf.WriteString(fmt.Sprintf("%s: %s\r\n", k, v))
 	}
-
 	if withAttachments {
 		buf.WriteString(fmt.Sprintf(`Content-Type: multipart/mixed; boundary="%s"`, boundary))
 		buf.WriteString("\r\n\r\n")
 		buf.WriteString(fmt.Sprintf("--%s\r\n", boundary))
 	}
-	buf.WriteString("Content-Type: text/plain; charset=utf-8\r\n")
-	buf.WriteString("MIME-Version: 1.0\r\n")
-	buf.WriteString("\r\n" + m.text)
+	if m.text != "" {
+		buf.WriteString("Content-Type: text/plain; charset=utf-8\r\n")
+		buf.WriteString("MIME-Version: 1.0\r\n")
+		buf.WriteString("\r\n" + m.text)
+	}
+	if m.html != "" {
+		buf.WriteString("Content-Type: text/html; charset=utf-8\r\n")
+		buf.WriteString("MIME-Version: 1.0\r\n")
+		buf.WriteString("\r\n" + m.html)
+	}
 	if withAttachments {
 		buf.WriteString(fmt.Sprintf("\r\n--%s", boundary))
 		for _, v := range m.attachments {
@@ -132,7 +148,6 @@ func (m *Message) buildMessageBody() []byte {
 			buf.WriteString("MIME-Version: 1.0\r\n")
 			buf.WriteString(fmt.Sprintf(`Content-Disposition: attachment; filename="%s"`, v.Filename))
 			buf.WriteString("\r\n\r\n")
-
 			var b = make([]byte, base64.StdEncoding.EncodedLen(len(v.Data)))
 			base64.StdEncoding.Encode(b, v.Data)
 			buf.Write(b)
@@ -140,7 +155,12 @@ func (m *Message) buildMessageBody() []byte {
 		}
 		buf.WriteString("--")
 	}
-	return buf.Bytes()
+	return buf
+}
+
+// WriteTo - io.WriteTo
+func (m Message) WriteTo(w io.Writer) (int64, error) {
+	return m.buildMessageBody().WriteTo(w)
 }
 
 // Attachment - simple file attachment structure

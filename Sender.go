@@ -1,65 +1,50 @@
 package gosmtp
 
 import (
+	"errors"
 	"fmt"
-	"net/smtp"
 )
 
 // Sender - smtp client structure
 type Sender struct {
 	Login, Email, Password, ServerSMTP string
-	client                             *smtp.Client
-	messages                           []*Message
 }
 
-// Close - close client
-func (s *Sender) Close() {
-	s.client.Close()
-}
-
-// AddMessage - add to the distribution queue
-func (s *Sender) AddMessage(msgs ...*Message) {
-	for _, m := range msgs {
-		m.SetFrom(s.Email)
-		s.messages = append(s.messages, m)
+// SendMessage - отправить письмо
+func (s *Sender) SendMessage(message *Message) error {
+	if message == nil {
+		return errors.New("message is nil")
 	}
-}
-
-// Send - simple send message
-func (s *Sender) Send() (ERR error) {
-	for _, message := range s.messages {
-		s.messages = s.messages[1:] // resetting from the sent message list
-		if err := s.client.Mail(message.from); err != nil {
-			ERR = fmt.Errorf("%s %q", err, message.from)
-		}
-		for _, recepient := range message.to {
-			if err := s.client.Rcpt(recepient); err != nil {
-				ERR = fmt.Errorf("%s %q", err, recepient)
-			}
-		}
-		for _, copies := range message.cc {
-			if err := s.client.Rcpt(copies); err != nil {
-				ERR = fmt.Errorf("%s %q", err, copies)
-			}
-		}
-		for _, secrets := range message.bcc {
-			if err := s.client.Rcpt(secrets); err != nil {
-				ERR = fmt.Errorf("%s %q", err, secrets)
-			}
-		}
-		w, err := s.client.Data()
-		if err != nil {
-			s.client.Reset()
-			return err
-		}
-		if _, err := w.Write(message.buildMessageBody()); err != nil {
-			s.client.Reset()
-			return err
-		}
-		if err := w.Close(); err != nil {
-			s.client.Reset()
-			return err
+	client, err := s.connect()
+	if err != nil {
+		return err
+	}
+	defer client.Close()
+	message.SetFrom(s.Email)
+	if err := client.Mail(message.from); err != nil {
+		return fmt.Errorf("%s %q", err, message.from)
+	}
+	for _, recepient := range message.to {
+		if err := client.Rcpt(recepient); err != nil {
+			return fmt.Errorf("%s %q", err, recepient)
 		}
 	}
-	return
+	for _, copies := range message.cc {
+		if err := client.Rcpt(copies); err != nil {
+			return fmt.Errorf("%s %q", err, copies)
+		}
+	}
+	for _, secrets := range message.bcc {
+		if err := client.Rcpt(secrets); err != nil {
+			return fmt.Errorf("%s %q", err, secrets)
+		}
+	}
+	w, err := client.Data()
+	if err != nil {
+		return err
+	}
+	if _, err := message.WriteTo(w); err != nil {
+		return err
+	}
+	return w.Close()
 }

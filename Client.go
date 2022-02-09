@@ -8,19 +8,18 @@ import (
 )
 
 // NewSender - new smtp client
-func NewSender(login, password, email, server string) (*Sender, error) {
-	var err error
-	auth := Sender{
+func NewSender(login, password, email, server string) (s *Sender) {
+	s = &Sender{
 		Login:      login,
 		Email:      email,
 		Password:   password,
 		ServerSMTP: server}
-	auth.client, err = auth.connect()
-	return &auth, err
+	// auth.client, err = auth.connect()
+	return
 }
 
 // create connection for smtp client
-func (s *Sender) connect() (c *smtp.Client, err error) {
+func (s Sender) connect() (c *smtp.Client, err error) {
 	host, _, err := net.SplitHostPort(s.ServerSMTP)
 	if err != nil {
 		return nil, err
