@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -20,7 +21,7 @@ import (
 type Message struct {
 	to, cc, bcc               []string
 	text, html, subject, from string
-	attachments               []*Attachment
+	attachments               []Attachment
 }
 
 // NewMessage - create new message
@@ -72,17 +73,18 @@ func (m *Message) SetHTML(body string) *Message {
 
 // AddAttaches - add files
 func (m *Message) AddAttaches(attchs ...string) *Message {
-	for _, filename := range attchs {
-		if a, err := attachFile(filename); err == nil {
+	for i := range attchs {
+		if a, err := attachFile(attchs[i]); err == nil {
 			m.attachments = append(m.attachments, a)
 		} else {
-			fmt.Println("AddAttaches ERROR:", err)
+			log.Println("ERROR AddAttaches:", err, attchs[i])
 		}
 	}
 	return m
 }
+
 func generateBoundary() string {
-	var buf = make([]byte, 16)
+	var buf = make([]byte, 16, 16)
 	rand.Read(buf)
 	return hex.EncodeToString(buf)
 }
@@ -102,25 +104,19 @@ func (m Message) buildMessageBody() *bytes.Buffer {
 	withAttachments := len(m.attachments) > 0
 	var headers = make(map[string]string)
 	headers["From"] = m.from
-	if m.to != nil {
+	if len(m.to) > 0 {
 		headers["To"] = strings.Join(m.to, ";")
-	} else {
-		m.to = make([]string, 0, 0)
 	}
-	if m.cc != nil {
+	if len(m.cc) > 0 {
 		headers["Cc"] = strings.Join(m.cc, ";")
-	} else {
-		m.cc = make([]string, 0, 0)
 	}
-	if m.bcc != nil {
+	if len(m.bcc) > 0 {
 		headers["Bcc"] = strings.Join(m.bcc, ";")
-	} else {
-		m.bcc = make([]string, 0, 0)
 	}
 	headers["Subject"] = m.subject
 	headers["MIME-Version"] = "1.0"
 	headers["Date"] = time.Now().Format(time.RFC1123Z)
-	var buf = bytes.NewBuffer(nil)
+	var buf bytes.Buffer
 	var boundary = generateBoundary()
 	for k, v := range headers {
 		buf.WriteString(fmt.Sprintf("%s: %s\r\n", k, v))
@@ -155,7 +151,7 @@ func (m Message) buildMessageBody() *bytes.Buffer {
 		}
 		buf.WriteString("--")
 	}
-	return buf
+	return &buf
 }
 
 // WriteTo - io.WriteTo
@@ -170,48 +166,25 @@ type Attachment struct {
 	Data     []byte
 }
 
-// attachFiles - attached files in message, match MIME type
-func attachFiles(src ...string) ([]*Attachment, error) {
-	var attachments = make([]*Attachment, len(src))
-	for i, filename := range src {
-		file, err := os.Open(filename)
-		if err != nil {
-			return nil, err
-		}
-		defer file.Close()
-		a, err := attachReader(file, filename)
-		if err != nil {
-			return nil, err
-		}
-		attachments[i] = a
-	}
-	return attachments, nil
-}
-
-func attachReader(r io.Reader, filename string) (*Attachment, error) {
-	var buff bytes.Buffer
-	if _, err := buff.ReadFrom(r); err != nil {
-		return nil, err
+func attachReader(r io.Reader, filename string) (Attachment, error) {
+	payload, err := io.ReadAll(r)
+	if err != nil {
+		return Attachment{}, err
 	}
 	var mime string
-	if strings.HasSuffix(filename, ".xlsx") {
-		mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+	if contentType, err := filetype.Match(payload); err != nil || contentType.Extension == "unknown" {
+		mime = http.DetectContentType(payload)
 	} else {
-		if contentType, err := filetype.Match(buff.Bytes()); err != nil || contentType.Extension == "unknown" {
-			mime = http.DetectContentType(buff.Bytes())
-		} else {
-			mime = contentType.MIME.Value
-		}
+		mime = contentType.MIME.Value
 	}
 	_, fileName := filepath.Split(filename)
-	return &Attachment{Filename: fileName, MIME: mime, Data: buff.Bytes()}, nil
+	return Attachment{Filename: fileName, MIME: mime, Data: payload}, nil
 }
 
-// ! deprecated
-func attachFile(filename string) (*Attachment, error) {
+func attachFile(filename string) (Attachment, error) {
 	file, err := os.Open(filename)
 	if err != nil {
-		return nil, err
+		return Attachment{}, err
 	}
 	defer file.Close()
 	return attachReader(file, filename)

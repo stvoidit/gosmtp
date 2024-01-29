@@ -3,6 +3,7 @@ package gosmtp
 import (
 	"crypto/tls"
 	"errors"
+	"fmt"
 	"net"
 	"net/smtp"
 )
@@ -24,9 +25,8 @@ func (s Sender) connect() (c *smtp.Client, err error) {
 	if err != nil {
 		return nil, err
 	}
-	var tlsConfig = tls.Config{ServerName: host}
-	var auth smtp.Auth
-	if conn, err := tls.Dial("tcp", s.ServerSMTP, &tlsConfig); err == nil {
+	var tlsConfig = &tls.Config{ServerName: host}
+	if conn, err := tls.Dial("tcp", s.ServerSMTP, tlsConfig); err == nil {
 		if err := conn.Handshake(); err != nil {
 			return nil, err
 		}
@@ -34,21 +34,26 @@ func (s Sender) connect() (c *smtp.Client, err error) {
 		if err != nil {
 			return nil, err
 		}
-		auth = smtp.PlainAuth("", s.Login, s.Password, host)
+		if ok, _ := c.Extension("AUTH"); !ok {
+			return c, errors.New("smtp: server doesn't support AUTH")
+		}
 	} else {
 		c, err = smtp.Dial(s.ServerSMTP)
 		if err != nil {
 			return nil, err
 		}
 		if ok, _ := c.Extension(`STARTTLS`); ok {
-			if err := c.StartTLS(&tlsConfig); err != nil {
+			if err := c.StartTLS(tlsConfig); err != nil {
 				return nil, err
 			}
 		}
-		auth = smtp.Auth(&logingAuth{username: s.Login, password: s.Password})
 	}
-	if err := c.Auth(auth); err != nil {
-		return c, err
+	if err := c.Auth(
+		logingAuth{
+			username: s.Login,
+			password: s.Password,
+		}); err != nil {
+		return nil, err
 	}
 	return c, nil
 }
@@ -58,12 +63,20 @@ type logingAuth struct {
 }
 
 // Start - init auth
-func (la *logingAuth) Start(server *smtp.ServerInfo) (string, []byte, error) {
-	return "LOGIN", make([]byte, 0), nil
+func (la logingAuth) Start(server *smtp.ServerInfo) (string, []byte, error) {
+	for _, authMethod := range server.Auth {
+		switch authMethod {
+		case "LOGIN":
+			return "LOGIN", nil, nil
+		case "PLAIN":
+			return "PLAIN", []byte("PLAIN" + "\x00" + la.username + "\x00" + la.password), nil
+		}
+	}
+	return "", nil, nil
 }
 
 // Next - next input
-func (la *logingAuth) Next(fromServer []byte, more bool) ([]byte, error) {
+func (la logingAuth) Next(fromServer []byte, more bool) ([]byte, error) {
 	if more {
 		switch string(fromServer) {
 		case "Username:":
@@ -71,7 +84,7 @@ func (la *logingAuth) Next(fromServer []byte, more bool) ([]byte, error) {
 		case "Password:":
 			return []byte(la.password), nil
 		default:
-			return nil, errors.New("Unkown fromServer: " + string(fromServer))
+			return nil, fmt.Errorf("Unkown fromServer: %s", fromServer)
 		}
 	}
 	return nil, nil

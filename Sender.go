@@ -19,24 +19,24 @@ func (s *Sender) SendMessage(message *Message) error {
 	if err != nil {
 		return err
 	}
-	defer client.Close()
+	defer client.Quit()
 	message.SetFrom(s.Email)
 	if err := client.Mail(message.from); err != nil {
 		return fmt.Errorf("%s %q", err, message.from)
 	}
-	for _, recepient := range message.to {
-		if err := client.Rcpt(recepient); err != nil {
-			return fmt.Errorf("%s %q", err, recepient)
+	for i := range message.to {
+		if err := client.Rcpt(message.to[i]); err != nil {
+			return fmt.Errorf("%s %q", err, message.to[i])
 		}
 	}
-	for _, copies := range message.cc {
-		if err := client.Rcpt(copies); err != nil {
-			return fmt.Errorf("%s %q", err, copies)
+	for i := range message.cc {
+		if err := client.Rcpt(message.cc[i]); err != nil {
+			return fmt.Errorf("%s %q", err, message.cc[i])
 		}
 	}
-	for _, secrets := range message.bcc {
-		if err := client.Rcpt(secrets); err != nil {
-			return fmt.Errorf("%s %q", err, secrets)
+	for i := range message.bcc {
+		if err := client.Rcpt(message.bcc[i]); err != nil {
+			return fmt.Errorf("%s %q", err, message.bcc[i])
 		}
 	}
 	w, err := client.Data()
